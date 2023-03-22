@@ -1,7 +1,5 @@
 provider "aws" {
   region = "us-east-1"
-  shared_credentials_file = "/home/ubuntu/.aws/credentials"
-  profile                 = "devops-student"
 }
 
 resource "aws_instance" "java_builder" {
