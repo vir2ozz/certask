@@ -15,8 +15,8 @@ pipeline {
         stage('Terraform Init & Apply') {
             steps {
                 node('') {
-                    sh 'cd certask && terraform init'
-                    sh 'cd certask && terraform apply -auto-approve'
+                    sh 'terraform init'
+                    sh 'terraform apply -auto-approve'
                 }
             }
         }
@@ -24,7 +24,7 @@ pipeline {
             steps {
                 node('') {
                     script {
-                        def instance_ip = sh(returnStdout: true, script: 'cd certask && terraform output -raw instance_ip').trim()
+                        def instance_ip = sh(returnStdout: true, script: 'terraform output -raw instance_ip').trim()
                         writeFile file: 'inventory.ini', text: "${instance_ip} ansible_ssh_user=ubuntu ansible_ssh_private_key_file=${SSH_CREDENTIALS}"
                     }
                 }
@@ -46,7 +46,7 @@ pipeline {
     post {
         always {
             node('') {
-                sh 'cd certask && terraform destroy -auto-approve'
+                sh 'terraform destroy -auto-approve'
             }
         }
     }
