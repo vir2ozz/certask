@@ -19,8 +19,8 @@ pipeline {
         stage('Configure Ansible') {
             steps {
                 script {
-                    def instance_ip = sh(returnStdout: true, script: 'terraform output -raw instance_ip').trim()
-                    writeFile file: 'inventory.ini', text: "${instance_ip} ansible_ssh_user=ubuntu ansible_ssh_private_key_file=${SSH_CREDENTIALS}"
+                    def app_instance_ip = sh(returnStdout: true, script: 'terraform output -raw app_instance_ip').trim()
+                    writeFile file: 'inventory.ini', text: "${app_instance_ip} ansible_ssh_user=ubuntu ansible_ssh_private_key_file=${SSH_CREDENTIALS}"
                 }
             }
         }
