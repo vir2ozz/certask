@@ -1,1 +1,26 @@
+- hosts: all
+  become: true
 
+  tasks:
+  - name: Install Docker
+    apt:
+      name: docker.io
+      state: present
+
+  - name: Copy Dockerfile and jar file
+    copy:
+      src: "{{ playbook_dir }}/Dockerfile"
+      dest: /home/ubuntu/
+    register: dockerfile_copy_result
+
+  - name: Build Docker image
+    command: "docker build -t hello-world:latest /home/ubuntu"
+    when: dockerfile_copy_result.changed
+
+  - name: Run Docker container
+    docker_container:
+      name: hello-world
+      image: hello-world:latest
+      state: started
+      published_ports:
+        - "8080:8080"
