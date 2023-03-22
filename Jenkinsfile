@@ -25,7 +25,7 @@ pipeline {
                 node('') {
                     script {
                         def instance_ip = sh(returnStdout: true, script: 'cd certask && terraform output -raw instance_ip').trim()
-                        writeFile file: 'certask/inventory.ini', text: "${instance_ip} ansible_ssh_user=ubuntu ansible_ssh_private_key_file=${SSH_CREDENTIALS}"
+                        writeFile file: 'inventory.ini', text: "${instance_ip} ansible_ssh_user=ubuntu ansible_ssh_private_key_file=${SSH_CREDENTIALS}"
                     }
                 }
             }
@@ -34,8 +34,8 @@ pipeline {
             steps {
                 node('') {
                     ansiblePlaybook(
-                        playbook: 'certask/playbook.yml',
-                        inventory: 'certask/inventory.ini',
+                        playbook: 'playbook.yml',
+                        inventory: 'inventory.ini',
                         installation: 'system',
                         credentialsId: 'ssh_aws'
                     )
