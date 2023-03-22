@@ -37,7 +37,7 @@ resource "null_resource" "copy_public_key_to_java_builder" {
   connection {
     type        = "ssh"
     user        = "ubuntu"
-    private_key = file("~/.ssh/dschool.pem")
+    private_key = file("/home/ubuntu/.ssh/dschool.pem")
     host        = aws_instance.java_builder.public_ip
   }
 
@@ -59,7 +59,7 @@ resource "null_resource" "copy_public_key_to_app_instance" {
   connection {
     type        = "ssh"
     user        = "ubuntu"
-    private_key = file("~/.ssh/dschool.pem")
+    private_key = file("/home/ubuntu/.ssh/dschool.pem")
     host        = aws_instance.app_instance.public_ip
   }
 
