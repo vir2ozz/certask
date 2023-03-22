@@ -37,7 +37,7 @@ pipeline {
     }
     post {
         always {
-            node {
+            node('master') {
                 sh 'terraform destroy -auto-approve'
             }
         }
