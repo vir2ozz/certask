@@ -1,45 +1,38 @@
 pipeline {
-    agent any
-    environment {
-        AWS_CREDENTIALS = credentials('devops-student_aws')
-        SSH_CREDENTIALS = credentials('ssh_aws')
+  agent any
+
+  stages {
+    stage('Terraform Init & Apply') {
+      steps {
+        sh 'terraform init'
+        sh 'terraform apply -auto-approve'
+      }
     }
-    stages {
-        stage('Checkout') {
-            steps {
-                git branch: 'master', url: 'https://github.com/vir2ozz/certask.git'
-            }
+
+    stage('Update Ansible Inventory') {
+      steps {
+        script {
+          def java_builder_ip = sh(returnStdout: true, script: 'terraform output java_builder_public_ip').trim()
+          def app_instance_ip = sh(returnStdout: true, script: 'terraform output app_instance_public_ip').trim()
+
+          sh "sed -i 's/java_builder ansible_host=.*/java_builder ansible_host=${java_builder_ip}/' inventory.ini"
+          sh "sed -i 's/app_instance ansible_host=.*/app_instance ansible_host=${app_instance_ip}/' inventory.ini"
         }
-        stage('Terraform Init & Apply') {
-            steps {
-                sh 'terraform init'
-                sh 'terraform apply -auto-approve'
-            }
-        }
-        stage('Configure Ansible') {
-            steps {
-                script {
-                    def app_instance_ip = sh(returnStdout: true, script: 'terraform output -raw app_instance_ip').trim()
-                    writeFile file: 'inventory.ini', text: "${app_instance_ip} ansible_ssh_user=ubuntu ansible_ssh_private_key_file=${SSH_CREDENTIALS}"
-                }
-            }
-        }
-        stage('Deploy Application') {
-            steps {
-                withCredentials([sshUserPrivateKey(credentialsId: 'ssh_aws', keyFileVariable: 'SSH_KEY_FILE')]) {
-                    ansiblePlaybook(
-                        playbook: 'playbook.yml',
-                        inventory: 'inventory.ini',
-                        installation: 'system',
-                        extras: "-e ansible_ssh_private_key_file=${SSH_KEY_FILE}"
-                    )
-                }
-            }
-        }
+      }
     }
-    post {
-        always {
-            sh 'terraform destroy -auto-approve'
+
+    stage('Run Ansible Playbook') {
+      steps {
+        withCredentials([sshUserPrivateKey(credentialsId: 'ssh_aws', keyFileVariable: 'key_file')]) {
+          sh "ansible-playbook -i inventory.ini playbook.yml --private-key ${key_file}"
         }
+      }
     }
+  }
+
+  post {
+    always {
+      sh 'terraform destroy -auto-approve'
+    }
+  }
 }
