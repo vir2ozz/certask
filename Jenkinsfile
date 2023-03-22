@@ -1,57 +1,47 @@
 pipeline {
-    agent {
-        label 'aws-ec2'
+    agent { label 'aws-agent' }
+    environment {
+        AWS_ACCESS_KEY_ID     = credentials('devops_aws')
+        AWS_SECRET_ACCESS_KEY = credentials('XrwB+wFM2qoe4cLoXcFPwaevnxQTKTEqCnChBBFV')
+        AWS_DEFAULT_REGION    = 'us-east-1'
     }
-
     stages {
-        stage('Initialize') {
+        stage('Terraform Init') {
+            steps {
+                sh 'terraform init'
+            }
+        }
+        stage('Terraform Apply') {
+            steps {
+                sh 'terraform apply -auto-approve'
+            }
+        }
+        stage('Build Java App') {
+            steps {
+                git url: 'https://github.com/vir2ozz/certask.git'
+                sh 'mvn clean install'
+            }
+        }
+        stage('Configure Ansible') {
             steps {
                 script {
-                    env.AWS_ACCESS_KEY_ID = 'AKIA5M4V4GFC47QOD6VK'
-                    env.AWS_SECRET_ACCESS_KEY = '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'
-                    env.AWS_DEFAULT_REGION = 'us-east-1'
+                    def instance_ip = sh(script: "terraform output -json | jq -r '.app_ip.value'", returnStdout: true).trim()
+                    writeFile file: 'inventory.ini', text: "app ansible_host=${instance_ip} ansible_user=ubuntu ansible_ssh_private_key_file=credentials('ssh_aws')"
                 }
             }
         }
-
-        stage('Terraform Init') {
-            steps {
-                terraform.init(
-                    credentialsId: 'devops_aws',
-                    sourceDir: 'terraform'
-                )
-            }
-        }
-
-        stage('Terraform Apply') {
-            steps {
-                terraform.apply(
-                    credentialsId: 'devops_aws',
-                    sourceDir: 'terraform',
-                    environment: [AWS_ACCESS_KEY_ID: env.AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY: env.AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION: env.AWS_DEFAULT_REGION]
-                )
-            }
-        }
-
-        stage('Ansible Setup') {
+        stage('Run Ansible Playbook') {
             steps {
                 ansiblePlaybook(
-                    playbook: 'ansible/playbook.yml',
-                    inventory: 'ansible/hosts.ini',
-                    credentialsId: 'ssh_aws',
-                    extras: '-e aws_access_key=${AWS_ACCESS_KEY_ID} -e aws_secret_key=${AWS_SECRET_ACCESS_KEY} -e aws_region=${AWS_DEFAULT_REGION}'
+                    inventory: 'inventory.ini',
+                    playbook: 'playbook.yml'
                 )
             }
         }
-        
-        stage('Cleanup') {
-            steps {
-                terraform.destroy(
-                    credentialsId: 'devops_aws',
-                    sourceDir: 'terraform',
-                    environment: [AWS_ACCESS_KEY_ID: env.AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY: env.AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION: env.AWS_DEFAULT_REGION]
-                )
-            }
+    }
+    post {
+        always {
+            deleteDir()
         }
     }
 }
