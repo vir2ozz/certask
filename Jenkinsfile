@@ -1,47 +1,45 @@
 pipeline {
-    agent { label 'aws-agent' }
-    environment {
-        AWS_ACCESS_KEY_ID     = credentials('devops_aws')
-        AWS_SECRET_ACCESS_KEY = credentials('XrwB+wFM2qoe4cLoXcFPwaevnxQTKTEqCnChBBFV')
-        AWS_DEFAULT_REGION    = 'us-east-1'
-    }
+    agent any
+
     stages {
-        stage('Terraform Init') {
+        stage('Checkout') {
             steps {
-                sh 'terraform init'
+                git 'https://github.com/vir2ozz/certask.git'
             }
         }
-        stage('Terraform Apply') {
-            steps {
-                sh 'terraform apply -auto-approve'
-            }
-        }
-        stage('Build Java App') {
-            steps {
-                git url: 'https://github.com/vir2ozz/certask.git'
-                sh 'mvn clean install'
-            }
-        }
-        stage('Configure Ansible') {
+        stage('Provision Infrastructure') {
             steps {
                 script {
-                    def instance_ip = sh(script: "terraform output -json | jq -r '.app_ip.value'", returnStdout: true).trim()
-                    writeFile file: 'inventory.ini', text: "app ansible_host=${instance_ip} ansible_user=ubuntu ansible_ssh_private_key_file=credentials('ssh_aws')"
+                    withCredentials([
+                        [$class: 'AmazonWebServicesCredentialsBinding', accessKeyVariable: 'AWS_ACCESS_KEY_ID', credentialsId: 'devops_aws', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'],
+                        sshUserPrivateKey(credentialsId: 'ssh_aws', keyFileVariable: 'SSH_PRIVATE_KEY')
+                    ]) {
+                        sh 'terraform init'
+                        sh 'terraform apply -auto-approve'
+                    }
                 }
             }
         }
         stage('Run Ansible Playbook') {
             steps {
                 ansiblePlaybook(
-                    inventory: 'inventory.ini',
-                    playbook: 'playbook.yml'
+                    inventory: 'ansible/hosts',
+                    playbook: 'playbook.yml',
+                    credentialsId: 'ssh_aws',
+                    extras: '--private-key=${SSH_PRIVATE_KEY} -u ec2-user'
                 )
             }
         }
     }
     post {
         always {
-            deleteDir()
+            script {
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding', accessKeyVariable: 'AWS_ACCESS_KEY_ID', credentialsId: 'devops_aws', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']
+                ]) {
+                    sh 'terraform destroy -auto-approve'
+                }
+            }
         }
     }
 }
