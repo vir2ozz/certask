@@ -1,44 +1,37 @@
-- name: Deploy Java Application
+- name: Deploy Java application
   hosts: all
   become: yes
+  gather_facts: yes
 
   tasks:
+    - name: Install Java
+      apt:
+        name: openjdk-11-jdk
+        state: present
+
     - name: Install Docker
-      ansible.builtin.apt:
+      apt:
         name: docker.io
         state: present
-        update_cache: yes
 
-    - name: Start and enable Docker
-      ansible.builtin.systemd:
+    - name: Enable Docker service
+      systemd:
         name: docker
-        state: started
         enabled: yes
-
-    - name: Create app directory
-      ansible.builtin.file:
-        path: /app
-        state: directory
-
-    - name: Copy WAR file
-      ansible.builtin.copy:
-        src: hello-1.0.war
-        dest: /app/hello-1.0.war
-
-    - name: Copy Dockerfile
-      ansible.builtin.copy:
-        src: Dockerfile
-        dest: /app/Dockerfile
+        state: started
 
     - name: Build Docker image
-      ansible.builtin.command:
-        chdir: /app
-        cmd: docker build -t my-java-app .
+      docker_image:
+        build:
+          path: ./
+          dockerfile: certask/Dockerfile
+        name: hello_app
+        source: build
 
-    - name: Run Docker container
-      ansible.builtin.docker_container:
-        name: my-java-app
-        image: my-java-app
+    - name: Deploy application container
+      docker_container:
+        name: hello_app
+        image: hello_app
         state: started
-        published_ports:
+        ports:
           - "8080:8080"
