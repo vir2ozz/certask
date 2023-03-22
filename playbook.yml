@@ -1,27 +1,37 @@
-- name: Deploy Java application on AWS instance
-  hosts: app_instance
+- name: Deploy Java application
+  hosts: all
   become: yes
+  gather_facts: yes
+
   tasks:
+    - name: Install Java
+      apt:
+        name: openjdk-11-jdk
+        state: present
+
     - name: Install Docker
       apt:
         name: docker.io
         state: present
 
-    - name: Start Docker service
+    - name: Enable Docker service
       systemd:
         name: docker
+        enabled: yes
         state: started
 
     - name: Build Docker image
       docker_image:
-        path: "{{ playbook_dir }}"
-        name: java_app
-        buildargs:
-          WAR_FILE: target/hello-1.0.war
+        build:
+          path: ./
+          dockerfile: certask/Dockerfile
+        name: hello_app
+        source: build
 
-    - name: Run Docker container
+    - name: Deploy application container
       docker_container:
-        name: java_app
-        image: java_app
+        name: hello_app
+        image: hello_app
+        state: started
         ports:
           - "8080:8080"
