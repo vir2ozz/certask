@@ -31,7 +31,7 @@ pipeline {
                         playbook: 'playbook.yml',
                         inventory: 'inventory.ini',
                         installation: 'system',
-                        extras: "-e ansible_ssh_private_key_file=${SSH_KEY_FILE}"
+                        extras: ["ansible_ssh_private_key_file": SSH_KEY_FILE]
                     )
                 }
             }
