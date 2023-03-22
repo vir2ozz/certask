@@ -1,5 +1,5 @@
 pipeline {
-    agent none
+    agent any
     environment {
         AWS_CREDENTIALS = credentials('devops-student_aws')
         SSH_CREDENTIALS = credentials('ssh_aws')
