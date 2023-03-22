@@ -1,33 +1,50 @@
-- name: Build and Deploy Java App
+---
+- name: Deploy Java Application
   hosts: all
   become: yes
   tasks:
-    - name: Install Docker
-      apt:
-        name: docker.io
+    - name: Install Java
+      package:
+        name: java-1.8.0-openjdk-devel
         state: present
-        update_cache: yes
 
-    - name: Create Docker network
-      docker_network:
-        name: app-network
+    - name: Install Maven
+      package:
+        name: maven
         state: present
+
+    - name: Checkout Java application
+      git:
+        repo: 'https://github.com/vir2ozz/certask.git'
+        dest: /opt/certask
+
+    - name: Build Java application
+      command: mvn clean package
+      args:
+        chdir: /opt/certask
+
+    - name: Install Docker
+      package:
+        name: docker
+        state: present
+
+    - name: Start Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
 
     - name: Build Docker image
-      docker_image:
-        build:
-          path: "{{ playbook_dir }}"
-          dockerfile: Dockerfile
-        name: java_app
-        source: build
+      command: docker build -t hello:1.0 .
+      args:
+        chdir: /opt/certask
 
-    - name: Deploy Docker container
-      docker_container:
-        name: java_app
-        image: java_app
-        state: started
-        recreate: yes
-        exposed_ports:
-          - "8080"
-        networks:
-          - name: app-network
+    - name: Run Docker container
+      command: docker run -d --name hello-app -p 8080:8080 hello:1.0
+
+    - name: Add EC2 instance to the Ansible inventory
+      local_action: lineinfile
+        path: ansible/hosts
+        line: "app ansible_host={{ inventory_hostname }}"
+      run_once: true
+      delegate_to: localhost
