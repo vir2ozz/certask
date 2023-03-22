@@ -1,43 +1,27 @@
-- name: Deploy Java application
-  hosts: all
+- name: Deploy Java application on AWS instance
+  hosts: app_instance
   become: yes
-  gather_facts: yes
-
   tasks:
-    - name: "Update Repository cache"
-      apt:
-        update_cache: true
-        cache_valid_time: 3600
-        force_apt_get: true
-  
-    - name: Install Java
-      apt:
-        name: openjdk-11-jdk
-        state: present
-
     - name: Install Docker
       apt:
         name: docker.io
         state: present
 
-    - name: Enable Docker service
+    - name: Start Docker service
       systemd:
         name: docker
-        enabled: yes
         state: started
 
     - name: Build Docker image
       docker_image:
-        build:
-          path: ./
-          dockerfile: certask/Dockerfile
-        name: hello_app
-        source: build
+        path: "{{ playbook_dir }}"
+        name: java_app
+        buildargs:
+          WAR_FILE: target/hello-1.0.war
 
-    - name: Deploy application container
+    - name: Run Docker container
       docker_container:
-        name: hello_app
-        image: hello_app
-        state: started
+        name: java_app
+        image: java_app
         ports:
           - "8080:8080"
