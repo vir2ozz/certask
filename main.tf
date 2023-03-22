@@ -26,56 +26,50 @@ resource "aws_instance" "app_instance" {
   }
 }
 
-resource "tls_private_key" "app_instance" {
-  algorithm = "RSA"
-  rsa_bits  = 2048
-}
-
 resource "null_resource" "copy_public_key_to_java_builder" {
-  depends_on = [aws_instance.java_builder, aws_instance.app_instance]
-
-  connection {
-    type        = "ssh"
-    user        = "ubuntu"
-    private_key = file("/home/ubuntu/.ssh/dschool.pem")
-    host        = aws_instance.java_builder.public_ip
-  }
-
   provisioner "file" {
-    content     = tls_private_key.app_instance.public_key_openssh
-    destination = "/tmp/app_instance.pub"
+    content     = file("/home/ubuntu/.ssh/id_rsa.pub")
+    destination = "/home/ubuntu/.ssh/id_rsa.pub"
   }
 
   provisioner "remote-exec" {
     inline = [
-      "cat /tmp/app_instance.pub >> /home/ubuntu/.ssh/authorized_keys",
+      "cat /home/ubuntu/.ssh/id_rsa.pub >> /home/ubuntu/.ssh/authorized_keys
+      "chmod 600 /home/ubuntu/.ssh/authorized_keys",
+      "rm /home/ubuntu/.ssh/id_rsa.pub"
     ]
+
+    connection {
+      type        = "ssh"
+      user        = "ubuntu"
+      private_key = file("/home/ubuntu/.ssh/dschool.pem")
+      host        = aws_instance.java_builder.public_ip
+    }
   }
+
+  depends_on = [aws_instance.java_builder]
 }
 
 resource "null_resource" "copy_public_key_to_app_instance" {
-  depends_on = [aws_instance.java_builder, aws_instance.app_instance]
-
-  connection {
-    type        = "ssh"
-    user        = "ubuntu"
-    private_key = file("/home/ubuntu/.ssh/dschool.pem")
-    host        = aws_instance.app_instance.public_ip
-  }
-
   provisioner "file" {
-    content     = tls_private_key.app_instance.public_key_openssh
-    destination = "/tmp/java_builder.pub"
+    content     = file("/home/ubuntu/.ssh/id_rsa.pub")
+    destination = "/home/ubuntu/.ssh/id_rsa.pub"
   }
 
   provisioner "remote-exec" {
     inline = [
-      "cat /tmp/java_builder.pub >> /home/ubuntu/.ssh/authorized_keys",
+      "cat /home/ubuntu/.ssh/id_rsa.pub >> /home/ubuntu/.ssh/authorized_keys",
+      "chmod 600 /home/ubuntu/.ssh/authorized_keys",
+      "rm /home/ubuntu/.ssh/id_rsa.pub"
     ]
-  }
-}
 
-output "app_instance_private_key" {
-  value     = tls_private_key.app_instance.private_key_pem
-  sensitive = true
+    connection {
+      type        = "ssh"
+      user        = "ubuntu"
+      private_key = file("/home/ubuntu/.ssh/dschool.pem")
+      host        = aws_instance.app_instance.public_ip
+    }
+  }
+
+  depends_on = [aws_instance.app_instance]
 }
