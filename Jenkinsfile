@@ -26,12 +26,14 @@ pipeline {
         }
         stage('Deploy Application') {
             steps {
-                ansiblePlaybook(
-                    playbook: 'playbook.yml',
-                    inventory: 'inventory.ini',
-                    installation: 'system',
-                    credentialsId: 'ssh_aws'
-                )
+                withCredentials([sshUserPrivateKey(credentialsId: 'ssh_aws', keyFileVariable: 'SSH_KEY_FILE')]) {
+                    ansiblePlaybook(
+                        playbook: 'playbook.yml',
+                        inventory: 'inventory.ini',
+                        installation: 'system',
+                        extras: "-e ansible_ssh_private_key_file=${SSH_KEY_FILE}"
+                    )
+                }
             }
         }
     }
@@ -42,5 +44,4 @@ pipeline {
             }
         }
     }
-    
 }
