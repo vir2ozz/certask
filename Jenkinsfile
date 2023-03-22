@@ -1,8 +1,6 @@
 pipeline {
-    agent any
-    environment {
-        AWS_CREDENTIALS = credentials('devops-student_aws')
-        SSH_CREDENTIALS = credentials('ssh_aws')
+    agent {
+        label 'jenkins_agent'
     }
     stages {
         stage('Provision AWS instance') {
