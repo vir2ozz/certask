@@ -1,64 +1,33 @@
----
-- name: Deploy Java application
-  hosts: app_instance
+- name: Build and Deploy Java App
+  hosts: all
   become: yes
   tasks:
-    - name: Update apt cache
-      apt: update_cache=yes
-
-    - name: Install docker
-      ansible.builtin.apt:
+    - name: Install Docker
+      apt:
         name: docker.io
         state: present
-      become: yes
+        update_cache: yes
 
-    - name: Ensure docker service is running
-      ansible.builtin.systemd:
-        name: docker
-        state: started
-        enabled: yes
-      become: yes
-
-    - name: Install git and other dependencies
-      ansible.builtin.apt:
-        name: "{{ item }}"
+    - name: Create Docker network
+      docker_network:
+        name: app-network
         state: present
-      loop:
-        - git
-        - openjdk-11-jdk
-        - maven
 
-    - name: Clone the repository
-      git:
-        repo: https://github.com/vir2ozz/certask.git
-        dest: /opt/certask
-        update: yes
+    - name: Build Docker image
+      docker_image:
+        build:
+          path: "{{ playbook_dir }}"
+          dockerfile: Dockerfile
+        name: java_app
+        source: build
 
-    - name: Build the application
-      command: mvn clean package -f /opt/certask/pom.xml
-      args:
-        chdir: /opt/certask
-      register: build_result
-
-    - name: Copy the war file to Docker context
-      copy:
-        src: /opt/certask/target/hello-1.0.war
-        dest: /opt/certask/docker/hello-1.0.war
-
-    - name: Build the Docker image
-      command: docker build -t hello-1.0 /opt/certask/docker
-      args:
-        chdir: /opt/certask/docker
-
-    - name: Run the Docker container
-      command: docker run -d -p 8080:8080 --name hello-1.0 hello-1.0
-      register: container_status
-      failed_when: "'created' not in container_status.stdout"
-
-- name: Add app_instance to the inventory
-  hosts: localhost
-  tasks:
-    - name: Add the instance to inventory
-      add_host:
-        name: "{{ hostvars['localhost']['instance_public_ip'] }}"
-        groups: app_instance
+    - name: Deploy Docker container
+      docker_container:
+        name: java_app
+        image: java_app
+        state: started
+        recreate: yes
+        exposed_ports:
+          - "8080"
+        networks:
+          - name: app-network
