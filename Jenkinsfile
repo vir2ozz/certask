@@ -17,23 +17,25 @@ pipeline {
                 }
 
                 // Prepare the inventory.ini file
-                sh "echo '[java_builder]\n${terraformOutput('java_builder_public_ip')} ansible_user=ubuntu\n\n[app_instance]\n${terraformOutput('app_instance_public_ip')} ansible_user=ubuntu\n' > inventory.ini"
-
+                def javaBuilderIp = "${env.TERRAFORM_OUTPUTS['java_builder_public_ip']['value']}"
+                def appInstanceIp = "${env.TERRAFORM_OUTPUTS['app_instance_public_ip']['value']}"
+                sh "echo '[java_builder]\n${javaBuilderIp} ansible_user=ubuntu\n\n[app_instance]\n${appInstanceIp} ansible_user=ubuntu\n' > inventory.ini"
 
                 // Load the SSH private key
-                withCredentials([sshUserPrivateKey(credentialsId: 'dschool.pem', keyFileVariable: 'KEY_FILE')]) {
-                    sh 'cp $KEY_FILE dschool.pem'
+                withCredentials([sshUserPrivateKey(credentialsId: 'ssh_aws', keyFileVariable: 'KEY_FILE')]) {
+                    sh 'cp $KEY_FILE ssh_key.pem'
+                    sh 'chmod 400 ssh_key.pem'
                 }
 
                 // Run the Ansible playbook
-                sh 'ansible-playbook -i inventory.ini playbook.yml --private-key dschool.pem'
+                sh 'ansible-playbook -i inventory.ini playbook.yml --private-key ssh_key.pem'
             }
         }
     }
 
     post {
         always {
-            sh 'rm -f dschool.pem'
+            sh 'rm -f ssh_key.pem'
         }
     }
 }
