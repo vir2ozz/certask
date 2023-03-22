@@ -1,5 +1,3 @@
-FROM tomcat:9-jdk11-openjdk-slim
+FROM tomcat:9-jdk11
 
-COPY hello-1.0.war /usr/local/tomcat/webapps/
-
-CMD ["catalina.sh", "run"]
+COPY target/hello-1.0.war /usr/local/tomcat/webapps/
