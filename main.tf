@@ -2,7 +2,7 @@ provider "aws" {
   region = "us-east-1"
 }
 
-resource "aws_instance" "jenkins_agent" {
+resource "aws_instance" "app_instance" {
   ami           = "ami-09cd747c78a9add63"
   instance_type = "t2.small"
   key_name      = "dschool"
@@ -12,6 +12,10 @@ resource "aws_instance" "jenkins_agent" {
   ]
 
   tags = {
-    Name = "jenkins-agent"
+    Name = "app_instance"
   }
+}
+
+output "app_instance_ip" {
+  value = aws_instance.app_instance.public_ip
 }
