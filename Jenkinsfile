@@ -17,7 +17,8 @@ pipeline {
                 }
 
                 // Prepare the inventory.ini file
-                sh "echo '[java_builder]\n$(terraformOutput('java_builder_public_ip')) ansible_user=ubuntu\n\n[app_instance]\n$(terraformOutput('app_instance_public_ip')) ansible_user=ubuntu\n' > inventory.ini"
+                sh "echo '[java_builder]\n\${$(terraformOutput('java_builder_public_ip'))} ansible_user=ubuntu\n\n[app_instance]\n\${$(terraformOutput('app_instance_public_ip'))} ansible_user=ubuntu\n' > inventory.ini"
+
 
                 // Load the SSH private key
                 withCredentials([sshUserPrivateKey(credentialsId: 'dschool.pem', keyFileVariable: 'KEY_FILE')]) {
