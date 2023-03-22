@@ -1,5 +1,5 @@
 provider "aws" {
-  region = "us-east-1"
+  region     = "us-east-1"
 }
 
 resource "aws_instance" "app_instance" {
@@ -7,12 +7,10 @@ resource "aws_instance" "app_instance" {
   instance_type = "t2.small"
   key_name      = "dschool"
 
-  vpc_security_group_ids = [
-    "sg-0727ee3d6745a3427"
-  ]
+  vpc_security_group_ids = ["sg-0727ee3d6745a3427"]
 
   tags = {
-    Name = "app_instance"
+    Name = "certask-app-instance"
   }
 }
 
