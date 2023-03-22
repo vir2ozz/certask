@@ -1,10 +1,10 @@
 provider "aws" {
-  region = "us-east-1"
+  region = var.aws_region
 }
 
 resource "aws_instance" "stage" {
-  ami           = "ami-0557a15b87f6559cf"
-  instance_type = "t2.micro"
+  ami           = var.ami
+  instance_type = var.instance_type
 
   tags = {
     Name = "stage"
