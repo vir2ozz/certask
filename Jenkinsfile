@@ -2,48 +2,38 @@ pipeline {
     agent {
         label 'aws-agent'
     }
+    environment {
+        AWS_CREDENTIALS = credentials('devops_aws')
+        SSH_CREDENTIALS = credentials('ssh_aws')
+    }
     stages {
         stage('Checkout') {
             steps {
-                checkout([
-                    $class: 'GitSCM',
-                    branches: [[name: '*/master']],
-                    extensions: [],
-                    userRemoteConfigs: [[url: 'https://github.com/vir2ozz/certask.git']]
-                ])
+                git branch: 'master', url: 'https://github.com/vir2ozz/certask.git'
             }
         }
         stage('Terraform Init & Apply') {
             steps {
-                withCredentials([[
-                    $class: 'AmazonWebServicesCredentialsBinding',
-                    accessKeyVariable: 'AWS_ACCESS_KEY_ID',
-                    credentialsId: 'devops_aws',
-                    secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
-                ]]) {
-                    sh 'cd certask && terraform init'
-                    sh 'cd certask && terraform apply -auto-approve'
+                sh 'cd certask && terraform init'
+                sh 'cd certask && terraform apply -auto-approve'
+            }
+        }
+        stage('Configure Ansible') {
+            steps {
+                script {
+                    def instance_ip = sh(returnStdout: true, script: 'cd certask && terraform output -raw instance_ip').trim()
+                    writeFile file: 'certask/inventory.ini', text: "${instance_ip} ansible_ssh_user=ubuntu ansible_ssh_private_key_file=${SSH_CREDENTIALS}"
                 }
             }
         }
-        stage('Build Java Application') {
+        stage('Deploy Application') {
             steps {
-                sh 'mvn clean package'
-                sh 'cp target/hello-1.0.war certask/hello-1.0.war'
-            }
-        }
-        stage('Ansible Deployment') {
-            steps {
-                withCredentials([[
-                    $class: 'SSHUserPrivateKey',
-                    keyFileVariable: 'SSH_PRIVATE_KEY',
-                    passphraseVariable: '',
-                    usernameVariable: 'SSH_USERNAME',
+                ansiblePlaybook(
+                    playbook: 'certask/playbook.yml',
+                    inventory: 'certask/inventory.ini',
+                    installation: 'system',
                     credentialsId: 'ssh_aws'
-                ]]) {
-                    sh 'export ANSIBLE_HOST_KEY_CHECKING=False'
-                    sh 'ansible-playbook -i "$(cd certask && terraform output -raw instance_public_ip)," -u ubuntu --private-key="${SSH_PRIVATE_KEY}" certask/playbook.yml'
-                }
+                )
             }
         }
     }
