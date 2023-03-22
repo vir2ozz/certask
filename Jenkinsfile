@@ -1,25 +1,33 @@
 pipeline {
-    agent none
+    agent {
+        label 'aws-ec2'
+    }
+    environment {
+        AWS_CREDENTIALS = credentials('aws-devops-credentials')
+    }
     stages {
-        stage('Provision AWS infrastructure') {
-            agent {
-                label 'aws-ec2'
-            }
+        stage('Initialize Terraform') {
             steps {
-                git 'https://github.com/your-terraform-repo.git'
                 sh 'terraform init'
+            }
+        }
+        stage('Apply Terraform') {
+            steps {
                 sh 'terraform apply -auto-approve'
             }
         }
-        stage('Build and Deploy Application') {
-            agent {
-                label 'aws-ec2'
-            }
+        stage('Build Java Application') {
             steps {
-                git 'https://github.com/your-ansible-repo.git'
+                git 'https://github.com/vir2ozz/certask.git'
+                sh 'mvn clean package'
+            }
+        }
+        stage('Run Ansible Playbook') {
+            steps {
                 ansiblePlaybook(
-                    playbook: 'build_and_deploy.yml',
-                    inventory: 'inventory.ini'
+                    playbook: 'ansible/deploy.yml',
+                    inventory: 'ansible/hosts',
+                    credentialsId: 'aws-devops-credentials'
                 )
             }
         }
