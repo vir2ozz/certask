@@ -1,5 +1,8 @@
 pipeline {
   agent any
+  environment {
+        AWS_CREDENTIALS = credentials('ubuntu_aws')
+        SSH_CREDENTIALS = credentials('ssh_aws')
 
   stages {
     stage('Terraform Init & Apply') {
