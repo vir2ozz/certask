@@ -1,38 +1,31 @@
----
-- name: Build and deploy Java application
-  hosts: jenkins_agent
-  become: yes
-  gather_facts: no
-  tasks:
-    - name: Install required packages
-      apt:
-        pkg:
-          - openjdk-11-jdk
-          - maven
-          - docker.io
+pipeline {
+    agent {
+        label 'jenkins_agent'
+    }
+    stages {
+        stage('Provision AWS instance') {
+            steps {
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'devops_aws']]) {
+                    sh 'terraform init'
+                    sh 'terraform apply -auto-approve'
+                }
+            }
+        }
 
-    - name: Clone the Java application repository
-      git:
-        repo: 'https://github.com/vir2ozz/certask.git'
-        dest: '/opt/certask'
-
-    - name: Build the Java application
-      command: mvn clean package
-      args:
-        chdir: /opt/certask
-
-    - name: Copy the WAR file to the staging directory
-      copy:
-        src: '/opt/certask/target/hello-1.0.war'
-        dest: '/opt/staging/hello-1.0.war'
-
-    - name: Copy Dockerfile to staging directory
-      copy:
-        src: 'Dockerfile'
-        dest: '/opt/staging/Dockerfile'
-
-    - name: Build Docker image
-      command: docker build -t hello:1.0 /opt/staging/
-
-    - name: Run Docker container
-      command: docker run -d -p 8080:8080 hello:1.0
+        stage('Build and deploy Java application') {
+            steps {
+                withCredentials([sshUserPrivateKey(credentialsId: 'ssh_aws', keyFileVariable: 'SSH_KEY')]) {
+                    ansiblePlaybook(
+                        credentialsId: 'ssh_aws',
+                        inventory: 'aws_instance.jenkins_agent.public_ip',
+                        playbook: 'playbook.yml',
+                        extraVars: [
+                            'ansible_user': 'ubuntu',
+                            'ansible_ssh_private_key_file': "${SSH_KEY}"
+                        ]
+                    )
+                }
+            }
+        }
+    }
+}
