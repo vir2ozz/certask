@@ -1,3 +1,6 @@
-FROM tomcat:9-jdk11
-ARG WAR_FILE
-COPY ${WAR_FILE} /usr/local/tomcat/webapps/ROOT.war
+FROM tomcat:9.0
+
+COPY hello-1.0.war /usr/local/tomcat/webapps/
+
+EXPOSE 8080
+CMD ["catalina.sh", "run"]
