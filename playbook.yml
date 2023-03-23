@@ -1,61 +1,57 @@
 ---
-- name: Build Java App
-  hosts: java_builder
+- name: Build Java app and transfer to Docker instance
+  hosts: app_instance
+  become: yes
   tasks:
-    - name: Install Java
-      yum:
-        name: java-1.8.0-openjdk-devel
+    - name: Install required packages
+      apt:
+        pkg:
+          - git
+          - openjdk-11-jdk
+          - maven
         state: present
+        update_cache: yes
 
-    - name: Install Git
-      yum:
-        name: git
-        state: present
-
-    - name: Clone repository
+    - name: Clone the Java app repository
       git:
         repo: 'https://github.com/vir2ozz/certask.git'
-        dest: /home/ec2-user/certask
+        dest: '/opt/certask'
 
-    - name: Build Java app
-      command: mvn clean package -f /home/ec2-user/certask/pom.xml
+    - name: Build the Java app using Maven
+      command: mvn clean install -DskipTests
+      args:
+        chdir: /opt/certask
 
-    - name: Copy WAR file to App Instance
+    - name: Transfer the built app to the Docker instance
       synchronize:
-        src: /home/ec2-user/certask/target/hello-1.0.war
-        dest: /home/ec2-user/
-      delegate_to: app_instance
+        src: /opt/certask/target/hello-1.0.war
+        dest: /opt/hello-1.0.war
+      delegate_to: docker_instance
 
-- name: Deploy App on App Instance
-  hosts: app_instance
+- name: Create Docker image and run container
+  hosts: docker_instance
+  become: yes
   tasks:
     - name: Install Docker
-      yum:
-        name: docker
+      ansible.builtin.package:
+        name: docker.io
         state: present
+      become: true
 
-    - name: Start Docker service
-      service:
+    - name: Start and enable Docker
+      ansible.builtin.systemd:
         name: docker
         state: started
         enabled: yes
+      become: true
 
-    - name: Copy Dockerfile to App Instance
+    - name: Copy Dockerfile
       copy:
         src: Dockerfile
-        dest: /home/ec2-user/Dockerfile
+        dest: /opt/Dockerfile
 
     - name: Build Docker image
-      docker_image:
-        name: hello-app
-        build:
-          path: /home/ec2-user/
-          dockerfile: /home/ec2-user/Dockerfile
+      command: docker build -t hello-1.0 /opt
 
     - name: Run Docker container
-      docker_container:
-        name: hello-app-container
-        image: hello-app
-        state: started
-        ports:
-          - "8080:8080"
+      command: docker run -d -p 8080:8080 --name hello-container hello-1.0
