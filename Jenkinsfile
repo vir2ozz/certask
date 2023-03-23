@@ -19,7 +19,6 @@ pipeline {
       steps {
         withCredentials([sshUserPrivateKey(credentialsId: 'dschool_pem', keyFileVariable: 'SSH_KEY_FILE', usernameVariable: 'SSH_USERNAME')]) {
           sh 'ansible-playbook -i inventory.ini playbook.yml --user=${SSH_USERNAME} --private-key=/home/ubuntu/dschool.pem'
-}
         }
       }
     }
