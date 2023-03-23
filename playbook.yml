@@ -1,57 +1,50 @@
 ---
-- name: Build Java app and transfer to Docker instance
-  hosts: app_instance
+- name: Setup instances
+  hosts: all
   become: yes
   tasks:
-    - name: Install required packages
+    - name: Install OpenJDK 8
       apt:
-        pkg:
-          - git
-          - openjdk-11-jdk
-          - maven
-        state: present
+        name: openjdk-8-jdk
         update_cache: yes
 
-    - name: Clone the Java app repository
-      git:
-        repo: 'https://github.com/vir2ozz/certask.git'
-        dest: '/opt/certask'
-
-    - name: Build the Java app using Maven
-      command: mvn clean install -DskipTests
-      args:
-        chdir: /opt/certask
-
-    - name: Transfer the built app to the Docker instance
-      synchronize:
-        src: /opt/certask/target/hello-1.0.war
-        dest: /opt/hello-1.0.war
-      delegate_to: docker_instance
-
-- name: Create Docker image and run container
-  hosts: docker_instance
-  become: yes
-  tasks:
     - name: Install Docker
-      ansible.builtin.package:
+      apt:
         name: docker.io
-        state: present
-      become: true
+        update_cache: yes
+      when: "'instance_2' in inventory_hostname"
 
-    - name: Start and enable Docker
-      ansible.builtin.systemd:
-        name: docker
-        state: started
-        enabled: yes
-      become: true
+- name: Build App
+  hosts: instance_1
+  tasks:
+    - name: Copy repository
+      synchronize:
+        src: ../
+        dest: /home/ubuntu/certask
+
+    - name: Build with Gradle
+      command: ./gradlew clean build
+      args:
+        chdir: /home/ubuntu/certask
+
+    - name: Copy WAR file
+      command: cp build/libs/hello-1.0.war /home/ubuntu
+
+- name: Deploy App
+  hosts: instance_2
+  tasks:
+    - name: Copy WAR file
+      synchronize:
+        src: /home/ubuntu/hello-1.0.war
+        dest: /home/ubuntu
 
     - name: Copy Dockerfile
-      copy:
-        src: Dockerfile
-        dest: /opt/Dockerfile
+      synchronize:
+        src: ../Dockerfile
+        dest: /home/ubuntu
 
     - name: Build Docker image
-      command: docker build -t hello-1.0 /opt
+      command: docker build -t hello-app .
 
     - name: Run Docker container
-      command: docker run -d -p 8080:8080 --name hello-container hello-1.0
+      command: docker run -d -p 8080:8080 hello-app
