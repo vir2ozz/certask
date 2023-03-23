@@ -1,50 +1,67 @@
----
-- name: Setup instances
-  hosts: all
+- name: Build Java application
+  hosts: instance1
   become: yes
+  gather_facts: no
   tasks:
-    - name: Install OpenJDK 8
+    - name: Install Java
       apt:
-        name: openjdk-8-jdk
+        name: openjdk-11-jdk
+        state: present
         update_cache: yes
 
+    - name: Clone the Git repository
+      git:
+        repo: 'https://github.com/vir2ozz/certask.git'
+        dest: '/opt/certask'
+
+    - name: Build the Java application
+      command: './mvnw package'
+      args:
+        chdir: '/opt/certask'
+
+    - name: Fetch the built WAR file
+      fetch:
+        src: '/opt/certask/target/hello-1.0.war'
+        dest: 'hello-1.0.war'
+
+- name: Deploy Java application on Docker
+  hosts: instance2
+  become: yes
+  gather_facts: no
+  tasks:
     - name: Install Docker
       apt:
         name: docker.io
+        state: present
         update_cache: yes
-      when: "'instance_2' in inventory_hostname"
 
-- name: Build App
-  hosts: instance_1
-  tasks:
-    - name: Copy repository
-      synchronize:
-        src: ../
-        dest: /home/ubuntu/certask
-
-    - name: Build with Gradle
-      command: ./gradlew clean build
-      args:
-        chdir: /home/ubuntu/certask
-
-    - name: Copy WAR file
-      command: cp build/libs/hello-1.0.war /home/ubuntu
-
-- name: Deploy App
-  hosts: instance_2
-  tasks:
-    - name: Copy WAR file
-      synchronize:
-        src: /home/ubuntu/hello-1.0.war
-        dest: /home/ubuntu
+    - name: Create a Docker network
+      docker_network:
+        name: app-network
 
     - name: Copy Dockerfile
-      synchronize:
-        src: ../Dockerfile
-        dest: /home/ubuntu
+      copy:
+        src: Dockerfile
+        dest: /tmp/Dockerfile
+
+    - name: Copy WAR file to remote instance
+      copy:
+        src: hello-1.0.war
+        dest: /tmp/hello-1.0.war
 
     - name: Build Docker image
-      command: docker build -t hello-app .
+      docker_image:
+        path: /tmp
+        name: hello-java-app
+        source: build
 
     - name: Run Docker container
-      command: docker run -d -p 8080:8080 hello-app
+      docker_container:
+        name: hello-java-container
+        image: hello-java-app
+        state: started
+        network_mode: app-network
+        exposed_ports:
+          - "8080"
+        published_ports:
+          - "8080:8080"
