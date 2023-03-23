@@ -1,38 +1,35 @@
 pipeline {
-    agent any
-    environment {
-        AWS_CREDENTIALS = credentials('ubuntu_aws')
-        SSH_CREDENTIALS = credentials('ssh_aws')
+  agent {
+    label 'aws'
+  }
+  stages {
+    stage('Terraform Init') {
+      steps {
+        sh 'terraform init'
+      }
     }
-    stages {
-        stage('Build and Deploy') {
-            steps {
-                // Clone the repository
-                git 'https://github.com/vir2ozz/certask.git'
-
-                // Load the Terraform outputs
-                // Load the Terraform outputs
-            script {
-                def terraformOutputs = sh(script: 'terraform output -json', returnStdout: true).trim()
-                env.TERRAFORM_OUTPUTS = readJSON text: terraformOutputs
-            }
-
-                // Prepare the inventory.ini file
-                sh "echo '[java_builder]\n${env.TERRAFORM_OUTPUTS.java_builder_public_ip.value} ansible_user=ubuntu\n\n[app_instance]\n${env.TERRAFORM_OUTPUTS.app_instance_public_ip.value} ansible_user=ubuntu\n' > inventory.ini"
-
-                // Run the Ansible playbook
-                sh "ansible-playbook -i inventory.ini playbook.yml --private-key dschool.pem"
-
-
-                // Run the Ansible playbook
-                //sh 'ansible-playbook -i inventory.ini playbook.yml --private-key ssh_key.pem'
-            }
+    stage('Terraform Apply') {
+      steps {
+        sh 'terraform apply -auto-approve'
+      }
+    }
+    stage('Run Ansible Playbook') {
+      steps {
+        script {
+          def appInstanceIP = sh(script: 'terraform output -raw app_instance_public_ip', returnStdout: true).trim()
+          def dockerInstanceIP = sh(script: 'terraform output -raw docker_instance_public_ip', returnStdout: true).trim()
+          withCredentials([
+            sshUserPrivateKey(credentialsId: 'ssh_aws', keyFileVariable: 'SSH_KEY')
+          ]) {
+            sh "ansible-playbook -i '${appInstanceIP},' -u ubuntu --private-key='${SSH_KEY}' playbook.yml --extra-vars 'app_instance=${appInstanceIP} docker_instance=${dockerInstanceIP}'"
+          }
         }
+      }
     }
-
-    post {
-        always {
-            sh 'rm -f ssh_key.pem'
-        }
+  }
+  post {
+    always {
+      sh 'terraform destroy -auto-approve'
     }
+  }
 }
