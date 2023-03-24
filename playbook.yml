@@ -1,55 +1,59 @@
-- name: Build Java application and transfer war file
-  hosts: tag_Name_instance1
+- name: Setup instance1
+  hosts: instance1
+  gather_facts: yes
   become: yes
   tasks:
-    - name: Install Git
-      ansible.builtin.apt:
-        name: git
-        state: present
-    - name: Clone Java application repository
-      ansible.builtin.git:
-        repo: 'https://github.com/vir2ozz/certask.git'
-        dest: '/home/jenkins/certask'
-    - name: Install Maven
-      ansible.builtin.apt:
-        name: maven
-        state: present
-    - name: Build Java application with Maven
-      ansible.builtin.command:
-        cmd: mvn package
-        chdir: /home/jenkins/certask
-    - name: Transfer war file to instance2
-      ansible.builtin.synchronize:
-        src: '/home/jenkins/certask/target/hello-1.0.war'
-        dest: '/home/jenkins/hello-1.0.war'
-        mode: push
-      delegate_to: "{{ groups['tag_Name_instance2'][0] }}"
+    - name: Update apt cache
+      apt: update_cache=yes
 
-- name: Build Docker image and run container
-  hosts: tag_Name_instance2
+    - name: Install Java and Maven
+      apt:
+        name: ['openjdk-11-jdk', 'maven']
+        state: present
+
+    - name: Clone repository
+      git:
+        repo: 'https://github.com/vir2ozz/certask.git'
+        dest: '/home/ubuntu/certask'
+
+    - name: Build the project
+      command: mvn clean install
+      args:
+        chdir: '/home/ubuntu/certask'
+
+    - name: Fetch the built artifact
+      fetch:
+        src: '/home/ubuntu/certask/target/hello-1.0.war'
+        dest: './hello-1.0.war'
+        flat: yes
+
+- name: Setup instance2
+  hosts: instance2
+  gather_facts: yes
   become: yes
   tasks:
+    - name: Update apt cache
+      apt: update_cache=yes
+
     - name: Install Docker
-      ansible.builtin.apt:
-        name: docker.io
+      apt:
+        name: ['docker.io']
         state: present
-    - name: Install Docker Python SDK
-      ansible.builtin.pip:
-        name: docker
-    - name: Copy Dockerfile
-      ansible.builtin.copy:
-        src: /path/to/your/Dockerfile
-        dest: /home/jenkins/Dockerfile
+
+    - name: Copy WAR file to instance2
+      copy:
+        src: './hello-1.0.war'
+        dest: '/home/ubuntu/hello-1.0.war'
+
+    - name: Copy Dockerfile to instance2
+      copy:
+        src: './Dockerfile'
+        dest: '/home/ubuntu/Dockerfile'
+
     - name: Build Docker image
-      ansible.builtin.docker_image:
-        build:
-          path: /home/jenkins
-        name: hello-app
-        source: build
+      command: docker build -t hello-app .
+      args:
+        chdir: '/home/ubuntu'
+
     - name: Run Docker container
-      ansible.builtin.docker_container:
-        name: hello-app-container
-        image: hello-app
-        state: started
-        ports:
-          - "8080:8080"
+      command: docker run -d --name hello-app -p 8080:8080 hello-app
