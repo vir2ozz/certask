@@ -1,3 +1,125 @@
+---
+- name: Build the application artifact
+  hosts: build
+  become: true
+  gather_facts: true
+
+  vars:
+    repo_url: "https://github.com/vir2ozz/certask.git"
+    workspace: /opt/build/certask
+    artifact: hello-1.0.war
+
+  tasks:
+    - name: Wait for cloud-init to release the apt lock
+      ansible.builtin.wait_for:
+        path: /var/lib/cloud/instance/boot-finished
+        timeout: 300
+
+    - name: Install JDK, Maven and git
+      ansible.builtin.apt:
+        name:
+          - openjdk-11-jdk-headless
+          - maven
+          - git
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Check out the application source
+      ansible.builtin.git:
+        repo: "{{ repo_url }}"
+        dest: "{{ workspace }}"
+        version: master
+        force: true
+
+    - name: Package the application
+      ansible.builtin.command:
+        cmd: mvn --batch-mode clean package
+        chdir: "{{ workspace }}"
+      register: maven_build
+      changed_when: "'BUILD SUCCESS' in maven_build.stdout"
+
+    - name: Retrieve the artifact to the controller
+      ansible.builtin.fetch:
+        src: "{{ workspace }}/target/{{ artifact }}"
+        dest: "./{{ artifact }}"
+        flat: true
+
+- name: Deploy the artifact as a container
+  hosts: stage
+  become: true
+  gather_facts: true
+
+  vars:
+    artifact: hello-1.0.war
+    app_dir: /opt/app
+    image_name: hello-app
+    container_name: hello-app
+    app_port: 8080
+
+  tasks:
+    - name: Wait for cloud-init to release the apt lock
+      ansible.builtin.wait_for:
+        path: /var/lib/cloud/instance/boot-finished
+        timeout: 300
+
+    - name: Install Docker and the Python SDK Ansible needs
+      ansible.builtin.apt:
+        name:
+          - docker.io
+          - python3-docker
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Ensure Docker is running and enabled
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Create the application directory
+      ansible.builtin.file:
+        path: "{{ app_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Copy the artifact and the Dockerfile
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "{{ app_dir }}/{{ item.dest }}"
+        mode: "0644"
+      loop:
+        - { src: "./{{ artifact }}", dest: "{{ artifact }}" }
+        - { src: "./Dockerfile", dest: "Dockerfile" }
+
+    - name: Build the image
+      community.docker.docker_image:
+        name: "{{ image_name }}"
+        tag: "{{ ansible_date_time.epoch }}"
+        source: build
+        force_source: true
+        build:
+          path: "{{ app_dir }}"
+
+    - name: Run the container
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        image: "{{ image_name }}:{{ ansible_date_time.epoch }}"
+        state: started
+        recreate: true
+        restart_policy: unless-stopped
+        published_ports:
+          - "{{ app_port }}:8080"
+
+    - name: Wait until the application answers
+      ansible.builtin.uri:
+        url: "http://localhost:{{ app_port }}/"
+        status_code: [200, 302, 404]
+      register: healthcheck
+      retries: 12
+      delay: 5
+      until: healthcheck is succeeded
 - name: Setup instance1
   hosts: instance1
   gather_facts: yes
