@@ -1,5 +1,32 @@
-*.ipr
-*.iws
-*.iml
-target
-/.idea/
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+*.tfvars
+
+# Secrets - never commit keys or certificates
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+
+# Generated at pipeline runtime
+inventory.ini
+tf-output.json
+
+# Build output
+target/
+*.war
+
+# Ansible
+*.retry
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
